@@ -1,0 +1,15 @@
+.git
+.github
+.node_modules
+node_modules
+.next
+out
+dist
+coverage
+.env
+.env.local
+.env.*.local
+.data
+*.log
+.DS_Store
+agent-transcripts

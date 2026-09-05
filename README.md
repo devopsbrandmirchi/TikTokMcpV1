@@ -195,7 +195,7 @@ Dates are `YYYY-MM-DD` in the **advertiser timezone**. They are not rewritten to
 | Rate limit | Wait and retry; shrink `page_size` or the date range |
 | Partial report | `has_more` / `partial` is true — request the next page |
 | Tokens lost after Cloud Run deploy | Configure Secret Manager; local files do not survive revisions |
-| `secretmanager.versions.access` / PERMISSION_DENIED | Grant the Cloud Run runtime service account `secretAccessor` and `secretVersionManager` on `tiktok-mcp-v1-tokens`. Run `.\scripts\cloud-run-grant-secrets.ps1`. IAM is enough; no redeploy required. |
+| `secretmanager.versions.access` / cannot write tokens | Create `tiktok-mcp-v1-tokens` first, then grant the Cloud Run runtime service account `secretAccessor` and `secretVersionManager`. Run `.\scripts\cloud-run-grant-secrets.ps1`. Those roles cannot create the secret at runtime. |
 
 ## 19. API limitations
 

@@ -46,10 +46,12 @@ The image listens on port 8080 as a non-root user. Persist local tokens with the
 
 Required roles on `tiktok-mcp-v1-tokens`:
 
-- `roles/secretmanager.secretAccessor` (read tokens during authorize)
-- `roles/secretmanager.secretVersionManager` (save tokens after TikTok callback)
+- `roles/secretmanager.secretAccessor` (`secretmanager.versions.access` — read the latest token version)
+- `roles/secretmanager.secretVersionManager` (`secretmanager.versions.add` — save tokens after TikTok callback)
 
-IAM changes apply immediately. You do not need a new Cloud Run revision.
+Create the secret before the first authorize. Those roles cannot `getSecret` or `createSecret`, so the runtime only adds versions to an existing secret.
+
+IAM changes apply immediately. You do not need a new Cloud Run revision for IAM.
 7. Cloud Run ingress must allow unauthenticated requests. Claude is not a GCP IAM identity. MCP JWTs authorize `/mcp`.
 
 Recommended service flags:

@@ -8,6 +8,8 @@ import type { TikTokStoredTokens, TikTokTokenStore } from "@/tiktok/store/types"
 function secretManagerSetupError(action: "read" | "write", cause: unknown): never {
   const config = getConfig();
   const secretName = config.tiktokTokenSecretName ?? "tiktok-mcp-v1-tokens";
+  const reason = cause instanceof Error ? cause.message : "unknown";
+  logger.error("Secret Manager TikTok token store failed", { action, secretName, reason });
   throw new TikTokAuthorizationError(
     `This Cloud Run service cannot ${action} TikTok tokens in Secret Manager secret "${secretName}". ` +
       "Create that secret if it is missing, then grant the Cloud Run runtime service account " +
@@ -52,38 +54,13 @@ export class SecretManagerTikTokTokenStore implements TikTokTokenStore {
   }
 
   async write(tokens: TikTokStoredTokens): Promise<void> {
-    const config = getConfig();
-    const parent = `projects/${config.googleCloudProject}`;
-    const secretId = config.tiktokTokenSecretName;
+    const secretId = getConfig().tiktokTokenSecretName;
     if (!secretId) {
       throw new Error("TIKTOK_TOKEN_SECRET_NAME is required for Secret Manager storage.");
     }
 
-    try {
-      await this.client.getSecret({ name: this.secretPath() });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown";
-      if (message.includes("NOT_FOUND")) {
-        try {
-          await this.client.createSecret({
-            parent,
-            secretId,
-            secret: { replication: { automatic: {} } },
-          });
-          logger.info("Created Secret Manager secret for TikTok tokens");
-        } catch (createError) {
-          secretManagerSetupError("write", createError);
-        }
-      } else if (
-        message.includes("PERMISSION_DENIED") ||
-        message.includes("secretmanager.")
-      ) {
-        secretManagerSetupError("write", error);
-      } else {
-        throw error;
-      }
-    }
-
+    // secretAccessor + secretVersionManager can access/add versions, but cannot
+    // getSecret or createSecret. The setup script must create the secret first.
     try {
       await this.client.addSecretVersion({
         parent: this.secretPath(),
@@ -91,7 +68,11 @@ export class SecretManagerTikTokTokenStore implements TikTokTokenStore {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown";
-      if (message.includes("PERMISSION_DENIED") || message.includes("secretmanager.")) {
+      if (
+        message.includes("PERMISSION_DENIED") ||
+        message.includes("NOT_FOUND") ||
+        message.includes("secretmanager.")
+      ) {
         secretManagerSetupError("write", error);
       }
       throw error;
