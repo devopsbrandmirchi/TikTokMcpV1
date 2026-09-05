@@ -38,7 +38,19 @@ The image listens on port 8080 as a non-root user. Persist local tokens with the
 ```
 
 5. Set `TIKTOK_TOKEN_SECRET_NAME` (for example `tiktok-mcp-v1-tokens`) and `GOOGLE_CLOUD_PROJECT` so rotated refresh tokens survive revisions.
-6. Cloud Run ingress must allow unauthenticated requests. Claude is not a GCP IAM identity. MCP JWTs authorize `/mcp`.
+6. Grant the Cloud Run **runtime** service account Secret Manager access. If Claude shows `PERMISSION_DENIED` / `secretmanager.versions.access`, the service account can see the env var but cannot read the secret:
+
+```powershell
+.\scripts\cloud-run-grant-secrets.ps1 -ProjectId YOUR_PROJECT -Service tiktokmcpv1
+```
+
+Required roles on `tiktok-mcp-v1-tokens`:
+
+- `roles/secretmanager.secretAccessor` (read tokens during authorize)
+- `roles/secretmanager.secretVersionManager` (save tokens after TikTok callback)
+
+IAM changes apply immediately. You do not need a new Cloud Run revision.
+7. Cloud Run ingress must allow unauthenticated requests. Claude is not a GCP IAM identity. MCP JWTs authorize `/mcp`.
 
 Recommended service flags:
 

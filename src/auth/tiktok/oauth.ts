@@ -68,6 +68,25 @@ interface TikTokOauthJson {
   };
 }
 
+export function extractAdvertiserIdsFromJsonText(raw: string): string[] {
+  const ids = new Set<string>();
+  const arrayMatch = raw.match(/"advertiser_ids"\s*:\s*\[(.*?)\]/s);
+  if (arrayMatch?.[1]) {
+    for (const match of arrayMatch[1].matchAll(/"(\d+)"|(\d+)/g)) {
+      const id = match[1] ?? match[2];
+      if (id) {
+        ids.add(id);
+      }
+    }
+  }
+  for (const match of raw.matchAll(/"advertiser_id"\s*:\s*"?(\d+)"?/g)) {
+    if (match[1]) {
+      ids.add(match[1]);
+    }
+  }
+  return [...ids];
+}
+
 async function postTikTokOAuth(path: string, body: Record<string, string>): Promise<TikTokTokenResponse> {
   const config = getConfig();
   const response = await fetch(`${config.tiktokApiBaseUrl}${path}`, {
@@ -76,9 +95,10 @@ async function postTikTokOAuth(path: string, body: Record<string, string>): Prom
     body: JSON.stringify(body),
   });
 
+  const raw = await response.text();
   let json: TikTokOauthJson;
   try {
-    json = (await response.json()) as TikTokOauthJson;
+    json = JSON.parse(raw) as TikTokOauthJson;
   } catch {
     throw new Error("TikTok returned a malformed OAuth response.");
   }
@@ -90,13 +110,29 @@ async function postTikTokOAuth(path: string, body: Record<string, string>): Prom
     );
   }
 
+  const advertiserIds = extractAdvertiserIdsFromJsonText(raw);
   return {
     accessToken: json.data.access_token,
     refreshToken: json.data.refresh_token,
-    advertiserIds: (json.data.advertiser_ids ?? []).map((id) => String(id)),
+    advertiserIds:
+      advertiserIds.length > 0
+        ? advertiserIds
+        : (json.data.advertiser_ids ?? []).map((id) => String(id)),
     scope: json.data.scope,
     expiresInSeconds: json.data.expires_in,
   };
+}
+
+export async function listAuthorizedAdvertisers(accessToken: string): Promise<string[]> {
+  const config = getConfig();
+  const url = new URL(`${config.tiktokApiBaseUrl}/oauth2/advertiser/get/`);
+  url.searchParams.set("app_id", config.tiktokAppId);
+  url.searchParams.set("secret", config.tiktokAppSecret);
+  const response = await fetch(url, {
+    headers: { "Access-Token": accessToken },
+  });
+  const raw = await response.text();
+  return extractAdvertiserIdsFromJsonText(raw);
 }
 
 export async function exchangeTikTokAuthCode(authCode: string): Promise<TikTokTokenResponse> {

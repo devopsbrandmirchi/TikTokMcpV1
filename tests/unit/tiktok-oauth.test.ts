@@ -3,6 +3,7 @@ import {
   buildTikTokAuthUrl,
   createTikTokOAuthState,
   exchangeTikTokAuthCode,
+  extractAdvertiserIdsFromJsonText,
   tiktokStateMatches,
   verifyTikTokOAuthState,
 } from "@/auth/tiktok/oauth";
@@ -51,6 +52,12 @@ describe("TikTok OAuth", () => {
     const stored = await store.read();
     expect(stored?.accessToken).toBe("tiktok-access-token");
     expect(stored?.refreshToken).toBe("tiktok-refresh-token");
+  });
+
+  it("keeps 19-digit advertiser IDs as strings instead of rounding them", () => {
+    const raw = `{"code":0,"data":{"access_token":"x","advertiser_ids":[7350928619922801666]}}`;
+    expect(extractAdvertiserIdsFromJsonText(raw)).toEqual(["7350928619922801666"]);
+    expect(JSON.parse(raw).data.advertiser_ids.map(String)[0]).not.toBe("7350928619922801666");
   });
 
   it("rejects authorization that does not include the configured advertiser", async () => {

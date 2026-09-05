@@ -1,5 +1,10 @@
 import { getConfig } from "@/config";
-import { exchangeTikTokAuthCode, refreshTikTokAccessToken, revokeTikTokAccessToken } from "@/auth/tiktok/oauth";
+import {
+  exchangeTikTokAuthCode,
+  listAuthorizedAdvertisers,
+  refreshTikTokAccessToken,
+  revokeTikTokAccessToken,
+} from "@/auth/tiktok/oauth";
 import { TikTokAuthenticationError, TikTokAuthorizationError } from "@/tiktok/errors";
 import { getTikTokTokenStore } from "@/tiktok/store";
 import type { TikTokStoredTokens } from "@/tiktok/store/types";
@@ -18,7 +23,9 @@ function assertConfiguredAdvertiser(advertiserIds: string[]): void {
   const configured = getConfig().tiktokAdvertiserId;
   if (advertiserIds.length > 0 && !advertiserIds.includes(configured)) {
     throw new TikTokAuthorizationError(
-      `The TikTok authorization did not include the configured advertiser ${configured}. Authorize that advertiser, or update TIKTOK_ADVERTISER_ID.`,
+      `The TikTok authorization did not include the configured advertiser ${configured}. ` +
+        `TikTok authorized: ${advertiserIds.join(", ")}. ` +
+        "On the TikTok consent screen, select the Ads Manager account whose URL contains that aadvid, or set TIKTOK_ADVERTISER_ID to one of the authorized IDs.",
     );
   }
 }
@@ -46,8 +53,17 @@ export async function isTikTokConnected(): Promise<boolean> {
 
 export async function storeTikTokAuthResult(authCode: string): Promise<TikTokStoredTokens> {
   const exchanged = await exchangeTikTokAuthCode(authCode);
-  assertConfiguredAdvertiser(exchanged.advertiserIds);
-  const stored = toStoredTokens(exchanged);
+  let advertiserIds = exchanged.advertiserIds;
+  try {
+    const listed = await listAuthorizedAdvertisers(exchanged.accessToken);
+    if (listed.length > 0) {
+      advertiserIds = [...new Set([...advertiserIds, ...listed])];
+    }
+  } catch {
+    // Token exchange advertiser_ids remain the source if the list endpoint fails.
+  }
+  assertConfiguredAdvertiser(advertiserIds);
+  const stored = toStoredTokens({ ...exchanged, advertiserIds });
   await getTikTokTokenStore().write(stored);
   return stored;
 }
