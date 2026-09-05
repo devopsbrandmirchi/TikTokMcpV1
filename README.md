@@ -63,7 +63,7 @@ Disconnect: `GET /oauth/tiktok/disconnect` (revokes when supported and clears st
 - Version: **v1.3**
 - Base: `https://business-api.tiktok.com/open_api/v1.3`
 - Header: `Access-Token`
-- Reads: `/advertiser/info/`, `/campaign/get/`, `/adgroup/get/`, `/ad/get/`
+- Reads: `/advertiser/info/`, `/campaign/get/` (Smart+ fallback), `/adgroup/get/` (Smart+ fallback), `/ad/get/` (Smart+ fallback)
 - Reports: `/report/integrated/get/` (async fallback via `/report/task/*`)
 
 See [docs/TIKTOK_API_MAPPING.md](docs/TIKTOK_API_MAPPING.md).

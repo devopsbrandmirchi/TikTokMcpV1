@@ -10,4 +10,6 @@ export interface NormalizedListResponse<T> {
   advertiser_id: string;
   items: T[];
   pagination: PaginationResult;
+  /** Which TikTok entity API returned the rows. */
+  api_source?: "classic" | "smart_plus";
 }

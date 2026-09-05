@@ -1,4 +1,5 @@
-import { pageHasMore, tiktokApiClient, type TikTokPageInfo } from "@/tiktok/client/client";
+import { getClassicOrSmartPlus } from "@/tiktok/client/classic-or-smart-plus";
+import { pageHasMore, type TikTokPageInfo } from "@/tiktok/client/client";
 import { AD_FIELDS, type TikTokAd } from "@/tiktok/models/ad";
 import type { NormalizedListResponse } from "@/tiktok/models/common";
 import { resolveAdvertiserId } from "@/tiktok/services/token";
@@ -19,11 +20,16 @@ export interface ListAdsInput {
 
 function normalizeAd(raw: Record<string, unknown>): TikTokAd {
   return {
-    ad_id: String(raw.ad_id ?? ""),
+    ad_id: String(raw.ad_id ?? raw.smart_plus_ad_id ?? ""),
     ad_name: raw.ad_name !== undefined ? String(raw.ad_name) : undefined,
     adgroup_id: raw.adgroup_id !== undefined ? String(raw.adgroup_id) : undefined,
     campaign_id: raw.campaign_id !== undefined ? String(raw.campaign_id) : undefined,
-    status: raw.status !== undefined ? String(raw.status) : undefined,
+    status:
+      raw.status !== undefined
+        ? String(raw.status)
+        : raw.secondary_status !== undefined
+          ? String(raw.secondary_status)
+          : undefined,
     operation_status: raw.operation_status !== undefined ? String(raw.operation_status) : undefined,
     landing_page_url: raw.landing_page_url !== undefined ? String(raw.landing_page_url) : undefined,
     ad_format: raw.ad_format !== undefined ? String(raw.ad_format) : undefined,
@@ -49,18 +55,24 @@ export class AdService {
 
     const page = input.page ?? 1;
     const pageSize = input.pageSize ?? 20;
-    const response = await tiktokApiClient.get<ListData>("/ad/get/", {
+    const listQuery = {
       advertiser_id: advertiserId,
-      fields: [...AD_FIELDS],
       page,
       page_size: pageSize,
       ...(Object.keys(filtering).length > 0 ? { filtering } : {}),
+    };
+    const { envelope, source } = await getClassicOrSmartPlus<ListData>({
+      classicPath: "/ad/get/",
+      smartPlusPath: "/smart_plus/ad/get/",
+      classicQuery: { ...listQuery, fields: [...AD_FIELDS] },
+      smartPlusQuery: listQuery,
     });
 
-    const pageInfo = response.data?.page_info;
+    const pageInfo = envelope.data?.page_info;
     return {
       advertiser_id: advertiserId,
-      items: (response.data?.list ?? []).map(normalizeAd),
+      items: (envelope.data?.list ?? []).map(normalizeAd),
+      api_source: source,
       pagination: {
         page: pageInfo?.page ?? page,
         page_size: pageInfo?.page_size ?? pageSize,

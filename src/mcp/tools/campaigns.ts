@@ -10,7 +10,7 @@ export function registerCampaignTools(server: McpServer): void {
     {
       title: "List TikTok campaigns",
       description:
-        "Lists campaigns for the configured TikTok advertiser. Optional status uses TikTok primary_status values such as STATUS_DELIVERY_OK, STATUS_DISABLE, or STATUS_DELETE. Pagination uses page (default 1) and page_size (default 20, max 1000). The response includes has_more. Use this for 'list campaigns' or 'show active campaigns'.",
+        "Lists campaigns for the configured TikTok advertiser via GET /campaign/get/, or GET /smart_plus/campaign/get/ when the classic endpoint is not granted. Optional status uses TikTok primary_status values such as STATUS_DELIVERY_OK, STATUS_DISABLE, or STATUS_DELETE. Pagination uses page (default 1) and page_size (default 20, max 1000). The response includes has_more. Use this for 'list campaigns' or 'show active campaigns'.",
       inputSchema: z.object({
         status: z.string().optional().describe("TikTok primary_status filter, if provided."),
         page: pageSchema,
@@ -37,7 +37,7 @@ export function registerCampaignTools(server: McpServer): void {
     {
       title: "Get TikTok campaign",
       description:
-        "Returns one campaign by campaign_id using TikTok GET /campaign/get/ with filtering.campaign_ids. Required: campaign_id. Returns a not-found error if TikTok does not include that campaign for the configured advertiser.",
+        "Returns one campaign by campaign_id using TikTok GET /campaign/get/ or, if that endpoint is not granted, GET /smart_plus/campaign/get/. Required: campaign_id. Returns a not-found error if TikTok does not include that campaign for the configured advertiser.",
       inputSchema: z.object({
         campaign_id: z.string().min(1).describe("TikTok campaign ID."),
       }),

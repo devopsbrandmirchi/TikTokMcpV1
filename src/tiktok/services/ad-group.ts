@@ -1,4 +1,5 @@
-import { pageHasMore, tiktokApiClient, type TikTokPageInfo } from "@/tiktok/client/client";
+import { getClassicOrSmartPlus } from "@/tiktok/client/classic-or-smart-plus";
+import { pageHasMore, type TikTokPageInfo } from "@/tiktok/client/client";
 import { AD_GROUP_FIELDS, type TikTokAdGroup } from "@/tiktok/models/ad-group";
 import type { NormalizedListResponse } from "@/tiktok/models/common";
 import { resolveAdvertiserId } from "@/tiktok/services/token";
@@ -18,10 +19,15 @@ export interface ListAdGroupsInput {
 
 function normalizeAdGroup(raw: Record<string, unknown>): TikTokAdGroup {
   return {
-    adgroup_id: String(raw.adgroup_id ?? ""),
+    adgroup_id: String(raw.adgroup_id ?? raw.smart_plus_adgroup_id ?? ""),
     adgroup_name: raw.adgroup_name !== undefined ? String(raw.adgroup_name) : undefined,
     campaign_id: raw.campaign_id !== undefined ? String(raw.campaign_id) : undefined,
-    status: raw.status !== undefined ? String(raw.status) : undefined,
+    status:
+      raw.status !== undefined
+        ? String(raw.status)
+        : raw.secondary_status !== undefined
+          ? String(raw.secondary_status)
+          : undefined,
     operation_status: raw.operation_status !== undefined ? String(raw.operation_status) : undefined,
     budget: typeof raw.budget === "number" ? raw.budget : undefined,
     budget_mode: raw.budget_mode !== undefined ? String(raw.budget_mode) : undefined,
@@ -48,18 +54,24 @@ export class AdGroupService {
 
     const page = input.page ?? 1;
     const pageSize = input.pageSize ?? 20;
-    const response = await tiktokApiClient.get<ListData>("/adgroup/get/", {
+    const listQuery = {
       advertiser_id: advertiserId,
-      fields: [...AD_GROUP_FIELDS],
       page,
       page_size: pageSize,
       ...(Object.keys(filtering).length > 0 ? { filtering } : {}),
+    };
+    const { envelope, source } = await getClassicOrSmartPlus<ListData>({
+      classicPath: "/adgroup/get/",
+      smartPlusPath: "/smart_plus/adgroup/get/",
+      classicQuery: { ...listQuery, fields: [...AD_GROUP_FIELDS] },
+      smartPlusQuery: listQuery,
     });
 
-    const pageInfo = response.data?.page_info;
+    const pageInfo = envelope.data?.page_info;
     return {
       advertiser_id: advertiserId,
-      items: (response.data?.list ?? []).map(normalizeAdGroup),
+      items: (envelope.data?.list ?? []).map(normalizeAdGroup),
+      api_source: source,
       pagination: {
         page: pageInfo?.page ?? page,
         page_size: pageInfo?.page_size ?? pageSize,

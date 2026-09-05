@@ -24,7 +24,7 @@ Response: Normalized campaign rows plus `pagination.has_more`.
 
 ## tiktok_get_campaign
 
-Purpose: One campaign via `/campaign/get/` filtered by `campaign_ids`.
+Purpose: One campaign via `/campaign/get/`, or `/smart_plus/campaign/get/` when the classic endpoint is not granted.
 
 Parameters: `campaign_id` (required).
 

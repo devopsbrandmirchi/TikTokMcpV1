@@ -1,4 +1,5 @@
-import { pageHasMore, tiktokApiClient, type TikTokPageInfo } from "@/tiktok/client/client";
+import { getClassicOrSmartPlus } from "@/tiktok/client/classic-or-smart-plus";
+import { pageHasMore, type TikTokPageInfo } from "@/tiktok/client/client";
 import type { NormalizedListResponse } from "@/tiktok/models/common";
 import { CAMPAIGN_FIELDS, type TikTokCampaign } from "@/tiktok/models/campaign";
 import { TikTokNotFoundError } from "@/tiktok/errors";
@@ -17,14 +18,30 @@ export interface ListCampaignsInput {
   campaignIds?: string[];
 }
 
+function asNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
 function normalizeCampaign(raw: Record<string, unknown>): TikTokCampaign {
   return {
     campaign_id: String(raw.campaign_id ?? ""),
     campaign_name: raw.campaign_name !== undefined ? String(raw.campaign_name) : undefined,
-    status: raw.status !== undefined ? String(raw.status) : undefined,
+    status:
+      raw.status !== undefined
+        ? String(raw.status)
+        : raw.secondary_status !== undefined
+          ? String(raw.secondary_status)
+          : undefined,
     operation_status: raw.operation_status !== undefined ? String(raw.operation_status) : undefined,
     objective_type: raw.objective_type !== undefined ? String(raw.objective_type) : undefined,
-    budget: typeof raw.budget === "number" ? raw.budget : undefined,
+    budget: asNumber(raw.budget) ?? asNumber(raw.current_budget),
     budget_mode: raw.budget_mode !== undefined ? String(raw.budget_mode) : undefined,
     create_time: raw.create_time !== undefined ? String(raw.create_time) : undefined,
     modify_time: raw.modify_time !== undefined ? String(raw.modify_time) : undefined,
@@ -44,19 +61,25 @@ export class CampaignService {
 
     const page = input.page ?? 1;
     const pageSize = input.pageSize ?? 20;
-    const response = await tiktokApiClient.get<ListData>("/campaign/get/", {
+    const listQuery = {
       advertiser_id: advertiserId,
-      fields: [...CAMPAIGN_FIELDS],
       page,
       page_size: pageSize,
       ...(Object.keys(filtering).length > 0 ? { filtering } : {}),
+    };
+    const { envelope, source } = await getClassicOrSmartPlus<ListData>({
+      classicPath: "/campaign/get/",
+      smartPlusPath: "/smart_plus/campaign/get/",
+      classicQuery: { ...listQuery, fields: [...CAMPAIGN_FIELDS] },
+      smartPlusQuery: listQuery,
     });
 
-    const items = (response.data?.list ?? []).map(normalizeCampaign);
-    const pageInfo = response.data?.page_info;
+    const items = (envelope.data?.list ?? []).map(normalizeCampaign);
+    const pageInfo = envelope.data?.page_info;
     return {
       advertiser_id: advertiserId,
       items,
+      api_source: source,
       pagination: {
         page: pageInfo?.page ?? page,
         page_size: pageInfo?.page_size ?? pageSize,

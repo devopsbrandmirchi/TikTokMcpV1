@@ -73,6 +73,48 @@ describe("TikTok services", () => {
 
     const ads = await adService.listAds({ campaignId: "111" });
     expect(ads.items[0]?.landing_page_url).toBe("https://example.com");
+    expect(campaigns.api_source).toBe("classic");
+  });
+
+  it("falls back to Smart+ campaign, ad group, and ad list endpoints on 40002", async () => {
+    installStore();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/campaign/get/") && !url.includes("/smart_plus/")) {
+          return new Response(JSON.stringify({ code: 40002, message: "No permission" }), { status: 200 });
+        }
+        if (url.includes("/smart_plus/campaign/get/")) {
+          return new Response(JSON.stringify(campaignListFixture), { status: 200 });
+        }
+        if (url.includes("/adgroup/get/") && !url.includes("/smart_plus/")) {
+          return new Response(JSON.stringify({ code: 40002, message: "No permission" }), { status: 200 });
+        }
+        if (url.includes("/smart_plus/adgroup/get/")) {
+          return new Response(JSON.stringify(adGroupListFixture), { status: 200 });
+        }
+        if (url.includes("/ad/get/") && !url.includes("/smart_plus/")) {
+          return new Response(JSON.stringify({ code: 40002, message: "No permission" }), { status: 200 });
+        }
+        if (url.includes("/smart_plus/ad/get/")) {
+          return new Response(JSON.stringify(adListFixture), { status: 200 });
+        }
+        return new Response(JSON.stringify({ code: 1, message: url }), { status: 500 });
+      }),
+    );
+
+    const campaigns = await campaignService.listCampaigns();
+    expect(campaigns.api_source).toBe("smart_plus");
+    expect(campaigns.items[0]?.campaign_name).toBe("Summer RV Campaign");
+
+    const groups = await adGroupService.listAdGroups();
+    expect(groups.api_source).toBe("smart_plus");
+    expect(groups.items[0]?.adgroup_id).toBe("222");
+
+    const ads = await adService.listAds();
+    expect(ads.api_source).toBe("smart_plus");
+    expect(ads.items[0]?.ad_id).toBeDefined();
   });
 
   it("runs a synchronous campaign report with currency and data notes", async () => {

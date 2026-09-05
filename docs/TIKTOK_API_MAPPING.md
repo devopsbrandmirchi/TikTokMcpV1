@@ -31,9 +31,9 @@ TikTok Marketing API advertiser authorization does not document PKCE. MCP OAuth 
 | Resource | Method | Path | Notes |
 |----------|--------|------|-------|
 | Advertiser | GET | `/advertiser/info/` | `advertiser_ids` JSON array |
-| Campaigns | GET | `/campaign/get/` | `filtering.campaign_ids`, `primary_status` |
-| Ad groups | GET | `/adgroup/get/` | `filtering.campaign_ids` |
-| Ads | GET | `/ad/get/` | `filtering.campaign_ids`, `adgroup_ids` |
+| Campaigns | GET | `/campaign/get/` | Falls back to `/smart_plus/campaign/get/` on TikTok `40002` |
+| Ad groups | GET | `/adgroup/get/` | Falls back to `/smart_plus/adgroup/get/` on TikTok `40002` |
+| Ads | GET | `/ad/get/` | Falls back to `/smart_plus/ad/get/` on TikTok `40002` |
 
 ## Reporting
 
