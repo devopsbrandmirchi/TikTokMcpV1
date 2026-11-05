@@ -172,4 +172,96 @@ describe("TikTok services", () => {
     expect(report.mode).toBe("asynchronous");
     expect(report.rows).toHaveLength(1);
   });
+
+  it("requests the name metric and the new revenue metrics, and returns names and values", async () => {
+    installStore();
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes("/advertiser/info/")) {
+          return new Response(JSON.stringify(advertiserInfoFixture), { status: 200 });
+        }
+        return new Response(
+          JSON.stringify({
+            code: 0,
+            data: {
+              list: [
+                {
+                  dimensions: { campaign_id: "111" },
+                  metrics: {
+                    campaign_name: "Summer RV Campaign",
+                    spend: "10.5",
+                    total_purchase_value: "99.9",
+                    cost_per_conversion: "5.25",
+                    total_active_pay_roas: "9.51",
+                  },
+                },
+              ],
+              page_info: { page: 1, page_size: 100, total_number: 1, total_page: 1 },
+            },
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+
+    const report = await reportService.run({
+      dimension: "campaign",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      metrics: ["spend", "total_purchase_value", "cost_per_conversion", "total_active_pay_roas"],
+    });
+    const reportUrl = decodeURIComponent(urls.find((u) => u.includes("/report/integrated/get/")) ?? "");
+    expect(reportUrl).toContain("campaign_name");
+    expect(reportUrl).toContain("total_purchase_value");
+    expect(report.rows[0]).toMatchObject({
+      campaign_id: "111",
+      campaign_name: "Summer RV Campaign",
+      total_purchase_value: 99.9,
+      cost_per_conversion: 5.25,
+      total_active_pay_roas: 9.51,
+    });
+  });
+
+  it("retries without the name metric and fills campaign names from the campaign list", async () => {
+    installStore();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = decodeURIComponent(String(input));
+        if (url.includes("/advertiser/info/")) {
+          return new Response(JSON.stringify(advertiserInfoFixture), { status: 200 });
+        }
+        if (url.includes("/report/integrated/get/")) {
+          if (url.includes("campaign_name")) {
+            return new Response(JSON.stringify({ code: 40000, message: "invalid metric campaign_name" }), {
+              status: 200,
+            });
+          }
+          return new Response(
+            JSON.stringify({
+              code: 0,
+              data: { list: [{ dimensions: { campaign_id: "111" }, metrics: { spend: "1" } }] },
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("/campaign/get/")) {
+          return new Response(JSON.stringify(campaignListFixture), { status: 200 });
+        }
+        return new Response(JSON.stringify({ code: 1, message: url }), { status: 500 });
+      }),
+    );
+
+    const report = await reportService.run({
+      dimension: "campaign",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      metrics: ["spend"],
+    });
+    expect(report.rows[0]?.campaign_name).toBe("Summer RV Campaign");
+  });
 });

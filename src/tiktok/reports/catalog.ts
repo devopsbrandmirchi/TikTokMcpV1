@@ -88,6 +88,34 @@ export const REPORT_METRICS: Record<string, MetricDefinition> = {
     source: "tiktok",
     description: "6-second video views.",
   },
+  total_purchase_value: {
+    mcpName: "total_purchase_value",
+    tiktokField: "total_purchase_value",
+    source: "tiktok",
+    description: "Total purchase value (revenue) attributed by TikTok, in the advertiser currency.",
+  },
+  cost_per_conversion: {
+    mcpName: "cost_per_conversion",
+    tiktokField: "cost_per_conversion",
+    source: "tiktok",
+    description: "Average cost per conversion supplied by TikTok.",
+  },
+  total_active_pay_roas: {
+    mcpName: "total_active_pay_roas",
+    tiktokField: "total_active_pay_roas",
+    source: "tiktok",
+    description: "Return on ad spend for purchases (total purchase value / spend) supplied by TikTok.",
+  },
+};
+
+/**
+ * TikTok returns entity names as report metrics, not dimensions. They are requested on every
+ * report so rows are never ID-only. Names are not part of the user-selectable metric list.
+ */
+export const NAME_METRIC_BY_DIMENSION: Record<ReportDimension, string> = {
+  campaign: "campaign_name",
+  ad_group: "adgroup_name",
+  ad: "ad_name",
 };
 
 export const DEFAULT_REPORT_METRICS = [

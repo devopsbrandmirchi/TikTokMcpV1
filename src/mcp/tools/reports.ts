@@ -23,7 +23,7 @@ export function registerReportTools(server: McpServer): void {
     {
       title: "TikTok campaign performance report",
       description:
-        "Returns campaign-level BASIC performance from TikTok GET /report/integrated/get/ (data_level AUCTION_CAMPAIGN). Required: start_date and end_date as YYYY-MM-DD. Optional metrics default to impressions, clicks, spend, conversions, ctr, cpc, cpm. Optional campaign_ids filter. Set group_by_day=true for daily rows. Dates are not converted to UTC. has_more=true means this page is incomplete. TikTok conversions are not comparable to Google Ads or Bing conversions. Currency comes from the advertiser account.",
+        "Returns campaign-level BASIC performance from TikTok GET /report/integrated/get/ (data_level AUCTION_CAMPAIGN). Required: start_date and end_date as YYYY-MM-DD. Optional metrics default to impressions, clicks, spend, conversions, ctr, cpc, cpm; total_purchase_value, cost_per_conversion and total_active_pay_roas are also available. Rows include campaign_name. Optional campaign_ids filter. Set group_by_day=true for daily rows. Dates are not converted to UTC. has_more=true means this page is incomplete. TikTok conversions are not comparable to Google Ads or Bing conversions. Currency comes from the advertiser account.",
       inputSchema: z.object(sharedReportFields),
     },
     async (input) => {

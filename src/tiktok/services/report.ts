@@ -1,6 +1,8 @@
 import { pageHasMore, tiktokApiClient, type TikTokPageInfo } from "@/tiktok/client/client";
-import { TikTokReportError } from "@/tiktok/errors";
+import { TikTokReportError, TikTokValidationError } from "@/tiktok/errors";
+import { logger } from "@/security/logger";
 import {
+  NAME_METRIC_BY_DIMENSION,
   dataLevelFor,
   idDimensionFor,
   resolveMetrics,
@@ -9,6 +11,7 @@ import {
 import { validateDateRange } from "@/tiktok/reports/dates";
 import { normalizeReportRow } from "@/tiktok/reports/normalize";
 import { advertiserService } from "@/tiktok/services/advertiser";
+import { campaignService } from "@/tiktok/services/campaign";
 import { resolveAdvertiserId } from "@/tiktok/services/token";
 
 export interface ReportRequest {
@@ -141,37 +144,107 @@ async function runAsyncReport(
   throw new TikTokReportError("TikTok asynchronous report timed out before completion. The result is not complete.");
 }
 
+const NAME_LOOKUP_CHUNK = 100;
+
+/**
+ * Best-effort name fill for campaign rows TikTok returned without a name. Never fails the report.
+ * Campaigns the app cannot read through the entity endpoints stay ID-only.
+ */
+async function fillMissingNames(
+  rows: Array<Record<string, unknown>>,
+  request: ReportRequest,
+): Promise<void> {
+  if (request.dimension !== "campaign") {
+    return;
+  }
+  const missing = [
+    ...new Set(
+      rows
+        .filter((row) => row.campaign_name === undefined && typeof row.campaign_id === "string")
+        .map((row) => row.campaign_id as string),
+    ),
+  ];
+  if (missing.length === 0) {
+    return;
+  }
+  const names = new Map<string, string>();
+  try {
+    for (let i = 0; i < missing.length; i += NAME_LOOKUP_CHUNK) {
+      const result = await campaignService.listCampaigns({
+        advertiserId: request.advertiserId,
+        campaignIds: missing.slice(i, i + NAME_LOOKUP_CHUNK),
+        pageSize: NAME_LOOKUP_CHUNK,
+      });
+      for (const item of result.items) {
+        if (item.campaign_name) {
+          names.set(item.campaign_id, item.campaign_name);
+        }
+      }
+    }
+  } catch (error) {
+    logger.warn("Could not fill campaign names from the campaign list", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+  for (const row of rows) {
+    const name = typeof row.campaign_id === "string" ? names.get(row.campaign_id) : undefined;
+    if (row.campaign_name === undefined && name) {
+      row.campaign_name = name;
+    }
+  }
+}
+
 export class ReportService {
   async run(request: ReportRequest): Promise<ReportResponse> {
     const dateRange = validateDateRange(request.startDate, request.endDate);
     const metricDefs = resolveMetrics(request.metrics);
-    const tiktokMetrics = [...new Set(metricDefs.map((metric) => metric.tiktokField))];
+    const dataMetrics = [...new Set(metricDefs.map((metric) => metric.tiktokField))];
+    const nameMetric = NAME_METRIC_BY_DIMENSION[request.dimension];
     const dimensions = [idDimensionFor(request.dimension)];
     if (request.groupByDay) {
       dimensions.push("stat_time_day");
     }
 
     const advertiser = await advertiserService.getAdvertiser(request.advertiserId);
-    const query = reportQuery(request, tiktokMetrics, dimensions);
 
     let data: SyncReportData = {};
     let mode: ReportResponse["mode"] = "synchronous";
     let partial = false;
 
+    // Ask TikTok for the entity name alongside the data. If TikTok rejects the name metric for
+    // this account or level, retry without it and fill names from the entity list afterwards.
+    const fetchReport = async (tiktokMetrics: string[]): Promise<SyncReportData> => {
+      try {
+        const sync = await tiktokApiClient.get<SyncReportData>(
+          "/report/integrated/get/",
+          reportQuery(request, tiktokMetrics, dimensions),
+        );
+        return sync.data ?? {};
+      } catch (error) {
+        if (!isSizeError(error)) {
+          throw error;
+        }
+        mode = "asynchronous";
+        return runAsyncReport(request, tiktokMetrics, dimensions);
+      }
+    };
+
     try {
-      const sync = await tiktokApiClient.get<SyncReportData>("/report/integrated/get/", query);
-      data = sync.data ?? {};
+      data = await fetchReport([...dataMetrics, nameMetric]);
     } catch (error) {
-      if (!isSizeError(error)) {
+      if (!(error instanceof TikTokValidationError) || isSizeError(error)) {
         throw error;
       }
-      mode = "asynchronous";
-      data = await runAsyncReport(request, tiktokMetrics, dimensions);
+      logger.warn("TikTok report rejected the name metric; retrying without it", {
+        dimension: request.dimension,
+      });
+      data = await fetchReport(dataMetrics);
     }
 
     const rows = (data.list ?? []).map((row) =>
       normalizeReportRow(row, request.dimension, metricDefs),
     );
+    await fillMissingNames(rows, request);
     const pageInfo = data.page_info;
     const hasMore = mode === "synchronous" ? pageHasMore(pageInfo) : false;
     if (hasMore) {

@@ -12,7 +12,7 @@ export const metricsSchema = z
   .array(z.string())
   .optional()
   .describe(
-    "MCP metric names. Defaults to impressions, clicks, spend, conversions, ctr, cpc, cpm. Unsupported names return an error instead of zero.",
+    "MCP metric names. Defaults to impressions, clicks, spend, conversions, ctr, cpc, cpm. Also available: conversion_rate, reach, frequency, video_play_actions, video_watched_2s, video_watched_6s, total_purchase_value, cost_per_conversion, total_active_pay_roas. Unsupported names return an error instead of zero.",
   );
 
 export function jsonToolResult(data: unknown): { content: Array<{ type: "text"; text: string }> } {

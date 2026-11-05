@@ -19,6 +19,15 @@ describe("date and metric validation", () => {
     expect(MAX_REPORT_RANGE_DAYS).toBe(365);
   });
 
+  it("supports purchase value, cost per conversion and purchase ROAS", () => {
+    const metrics = resolveMetrics(["total_purchase_value", "cost_per_conversion", "total_active_pay_roas"]);
+    expect(metrics.map((m) => m.tiktokField)).toEqual([
+      "total_purchase_value",
+      "cost_per_conversion",
+      "total_active_pay_roas",
+    ]);
+  });
+
   it("maps conversions to TikTok conversion and rejects unknown metrics", () => {
     const metrics = resolveMetrics(["spend", "conversions"]);
     expect(metrics.map((m) => m.tiktokField)).toEqual(["spend", "conversion"]);
